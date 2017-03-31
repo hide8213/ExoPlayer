@@ -16,6 +16,8 @@
 package com.google.android.exoplayer2.source.dash;
 
 import android.net.Uri;
+import android.util.Log;
+
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.extractor.ChunkIndex;
@@ -57,7 +59,11 @@ public final class DashUtil {
       inputStream.open();
       DashManifestParser parser = new DashManifestParser();
       return parser.parse(dataSource.getUri(), inputStream);
-    } finally {
+    } catch(Exception e){
+      Log.d("Exception", e.getMessage());
+      throw e;
+    }
+    finally {
       inputStream.close();
     }
   }

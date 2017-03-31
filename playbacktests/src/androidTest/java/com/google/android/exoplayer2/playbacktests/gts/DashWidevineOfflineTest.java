@@ -51,7 +51,7 @@ public final class DashWidevineOfflineTest extends ActivityInstrumentationTestCa
     super.setUp();
     testRunner = new DashTestRunner(TAG, getActivity(), getInstrumentation())
         .setStreamName("test_widevine_h264_fixed_offline")
-        .setManifestUrl(DashTestData.WIDEVINE_H264_MANIFEST)
+        .setManifestUrl(DashTestData.REX_WIDEVINE_H264_MANIFEST)
         .setWidevineMimeType(MimeTypes.VIDEO_H264)
         .setFullPlaybackNoSeeking(true)
         .setCanIncludeAdditionalVideoFormats(false)
@@ -85,7 +85,7 @@ public final class DashWidevineOfflineTest extends ActivityInstrumentationTestCa
     if (Util.SDK_INT < 22) {
       return; // Pass.
     }
-    downloadLicense();
+     downloadLicense();
     testRunner.run();
 
     // Renew license after playback should still work
@@ -165,7 +165,7 @@ public final class DashWidevineOfflineTest extends ActivityInstrumentationTestCa
 
   private void downloadLicense() throws InterruptedException, DrmSessionException, IOException {
     offlineLicenseKeySetId = offlineLicenseHelper.download(
-        httpDataSourceFactory.createDataSource(), DashTestData.WIDEVINE_H264_MANIFEST);
+        httpDataSourceFactory.createDataSource(), DashTestData.REX_WIDEVINE_H264_MANIFEST);
     Assert.assertNotNull(offlineLicenseKeySetId);
     Assert.assertTrue(offlineLicenseKeySetId.length > 0);
     testRunner.setOfflineLicenseKeySetId(offlineLicenseKeySetId);

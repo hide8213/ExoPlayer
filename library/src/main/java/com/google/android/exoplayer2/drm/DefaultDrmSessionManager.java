@@ -572,6 +572,8 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
           });
         }
       } else {
+        byte[] resByte = (byte[]) response;
+        String resStr = new String(resByte);
         byte[] keySetId = mediaDrm.provideKeyResponse(sessionId, (byte[]) response);
         if ((mode == MODE_DOWNLOAD || (mode == MODE_PLAYBACK && offlineLicenseKeySetId != null))
             && keySetId != null && keySetId.length != 0) {

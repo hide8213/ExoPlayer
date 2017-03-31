@@ -24,6 +24,8 @@ public final class DashTestData {
 
   private static final String BASE_URL = "https://storage.googleapis.com/exoplayer-test-media-1/"
       + "gen-4/screens/dash-vod-single-segment/";
+//  private static final String BASE_URL = "https://storage.googleapis.com/rexwv/rex/";
+  public static final String REX_WIDEVINE_H264_MANIFEST = "https://storage.googleapis.com/eason-media/en3_sintel_vod.mpd";
   // Clear content manifests.
   public static final String H264_MANIFEST = BASE_URL + "manifest-h264.mpd";
   public static final String H265_MANIFEST = BASE_URL + "manifest-h265.mpd";
@@ -139,10 +141,13 @@ public final class DashTestData {
 
   private static final String WIDEVINE_LICENSE_URL =
       "https://proxy.uat.widevine.com/proxy?provider=widevine_test&video_id=";
+  private static final String REX_WIDEVINE_LICENSE_URL =
+        "http://35.184.173.35:9000/proxy";
   private static final String WIDEVINE_SW_CRYPTO_CONTENT_ID = "exoplayer_test_1";
   private static final String WIDEVINE_HW_SECURE_DECODE_CONTENT_ID = "exoplayer_test_2";
 
   public static String getWidevineLicenseUrl(boolean useL1Widevine) {
+//    return REX_WIDEVINE_LICENSE_URL;
     return WIDEVINE_LICENSE_URL
         + (useL1Widevine ? WIDEVINE_HW_SECURE_DECODE_CONTENT_ID : WIDEVINE_SW_CRYPTO_CONTENT_ID);
   }
