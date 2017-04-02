@@ -107,6 +107,7 @@ public final class DashTestRunner {
   private boolean useL1Widevine;
   private String widevineLicenseUrl;
   private DataSource.Factory dataSourceFactory;
+  private boolean offline;
 
   @TargetApi(18)
   @SuppressWarnings("ResourceType")
@@ -125,10 +126,11 @@ public final class DashTestRunner {
     }
   }
 
-  public DashTestRunner(String tag, HostActivity activity, Instrumentation instrumentation) {
+  public DashTestRunner(String tag, HostActivity activity, Instrumentation instrumentation, boolean offline) {
     this.tag = tag;
     this.activity = activity;
     this.instrumentation = instrumentation;
+    this.offline = offline;
   }
 
   public DashTestRunner setStreamName(String streamName) {
@@ -171,7 +173,7 @@ public final class DashTestRunner {
 
   public DashTestRunner setWidevineMimeType(String mimeType) {
     this.useL1Widevine = isL1WidevineAvailable(mimeType);
-    this.widevineLicenseUrl = DashTestData.getWidevineLicenseUrl(useL1Widevine);
+    //this.widevineLicenseUrl = DashTestData.getWidevineLicenseUrl(useL1Widevine);
     return this;
   }
 
@@ -182,23 +184,23 @@ public final class DashTestRunner {
 
   public void run() {
     DashHostedTest test = createDashHostedTest(canIncludeAdditionalVideoFormats, false,
-        instrumentation);
+        instrumentation, offline);
     activity.runTest(test, TEST_TIMEOUT_MS);
     // Retry test exactly once if adaptive test fails due to excessive dropped buffers when
     // playing non-CDD required formats (b/28220076).
     if (test.needsCddLimitedRetry) {
-      activity.runTest(createDashHostedTest(false, true, instrumentation), TEST_TIMEOUT_MS);
+      activity.runTest(createDashHostedTest(false, true, instrumentation, offline), TEST_TIMEOUT_MS);
     }
   }
 
   private DashHostedTest createDashHostedTest(boolean canIncludeAdditionalVideoFormats,
-      boolean isCddLimitedRetry, Instrumentation instrumentation) {
+      boolean isCddLimitedRetry, Instrumentation instrumentation, boolean offline) {
     MetricsLogger metricsLogger = MetricsLogger.Factory.createDefault(instrumentation, tag,
         REPORT_NAME, REPORT_OBJECT_NAME);
     return new DashHostedTest(tag, streamName, manifestUrl, metricsLogger, fullPlaybackNoSeeking,
         audioFormat, canIncludeAdditionalVideoFormats, isCddLimitedRetry, actionSchedule,
         offlineLicenseKeySetId, widevineLicenseUrl, useL1Widevine, dataSourceFactory,
-        videoFormats);
+            offline, videoFormats);
   }
 
   /**
@@ -242,8 +244,8 @@ public final class DashTestRunner {
         MetricsLogger metricsLogger, boolean fullPlaybackNoSeeking, String audioFormat,
         boolean canIncludeAdditionalVideoFormats, boolean isCddLimitedRetry,
         ActionSchedule actionSchedule, byte[] offlineLicenseKeySetId, String widevineLicenseUrl,
-        boolean useL1Widevine, DataSource.Factory dataSourceFactory, String... videoFormats) {
-      super(tag, fullPlaybackNoSeeking);
+        boolean useL1Widevine, DataSource.Factory dataSourceFactory, boolean offline, String... videoFormats) {
+      super(tag, fullPlaybackNoSeeking, offline);
       Assertions.checkArgument(!(isCddLimitedRetry && canIncludeAdditionalVideoFormats));
       this.streamName = streamName;
       this.manifestUrl = manifestUrl;
@@ -270,9 +272,10 @@ public final class DashTestRunner {
     @Override
     protected DefaultDrmSessionManager<FrameworkMediaCrypto> buildDrmSessionManager(
         final String userAgent) {
-      if (widevineLicenseUrl == null) {
-        return null;
-      }
+//      if (widevineLicenseUrl == null) {
+//
+//        return null;
+//      }
       try {
         MediaDrmCallback drmCallback = new HttpMediaDrmCallback(widevineLicenseUrl,
             new DefaultHttpDataSourceFactory(userAgent));
@@ -419,6 +422,7 @@ public final class DashTestRunner {
       // Always select explicitly listed representations.
       for (String formatId : formatIds) {
         int trackIndex = getTrackIndex(trackGroup, formatId);
+//        int trackIndex = 0;
         Log.d(tag, "Adding base video format: "
             + Format.toLogString(trackGroup.getFormat(trackIndex)));
         trackIndices.add(trackIndex);
@@ -444,6 +448,8 @@ public final class DashTestRunner {
       for (int i = 0; i < trackGroup.length; i++) {
         if (trackGroup.getFormat(i).id.equals(formatId)) {
           return i;
+        }else{
+          return 0;
         }
       }
       throw new IllegalStateException("Format " + formatId + " not found.");

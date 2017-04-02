@@ -98,8 +98,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
    * @param context A context.
    * @param mediaCodecSelector A decoder selector.
    */
-  public MediaCodecVideoRenderer(Context context, MediaCodecSelector mediaCodecSelector) {
-    this(context, mediaCodecSelector, 0);
+  public MediaCodecVideoRenderer(Context context, MediaCodecSelector mediaCodecSelector, boolean offline) {
+    this(context, mediaCodecSelector, 0, offline);
   }
 
   /**
@@ -109,7 +109,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
    *     can attempt to seamlessly join an ongoing playback.
    */
   public MediaCodecVideoRenderer(Context context, MediaCodecSelector mediaCodecSelector,
-      long allowedJoiningTimeMs) {
+      long allowedJoiningTimeMs, boolean offline) {
     this(context, mediaCodecSelector, allowedJoiningTimeMs, null, null, -1);
   }
 

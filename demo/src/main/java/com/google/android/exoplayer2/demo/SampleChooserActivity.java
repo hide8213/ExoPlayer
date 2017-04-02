@@ -181,6 +181,7 @@ public class SampleChooserActivity extends Activity {
       String extension = null;
       UUID drmUuid = null;
       String drmLicenseUrl = null;
+      boolean offline = false;
       String[] drmKeyRequestProperties = null;
       boolean preferExtensionDecoders = false;
       ArrayList<UriSample> playlistSamples = null;
@@ -206,6 +207,9 @@ public class SampleChooserActivity extends Activity {
             Assertions.checkState(!insidePlaylist,
                 "Invalid attribute on nested item: drm_license_url");
             drmLicenseUrl = reader.nextString();
+            break;
+          case "offline":
+            offline = reader.nextBoolean();
             break;
           case "drm_key_request_properties":
             Assertions.checkState(!insidePlaylist,
@@ -246,7 +250,7 @@ public class SampleChooserActivity extends Activity {
             preferExtensionDecoders, playlistSamplesArray);
       } else {
         return new UriSample(sampleName, drmUuid, drmLicenseUrl, drmKeyRequestProperties,
-            preferExtensionDecoders, uri, extension);
+            preferExtensionDecoders, uri, extension, offline);
       }
     }
 
@@ -402,13 +406,15 @@ public class SampleChooserActivity extends Activity {
 
     public final String uri;
     public final String extension;
+    public final boolean offline;
 
     public UriSample(String name, UUID drmSchemeUuid, String drmLicenseUrl,
-        String[] drmKeyRequestProperties, boolean preferExtensionDecoders, String uri,
-        String extension) {
+                     String[] drmKeyRequestProperties, boolean preferExtensionDecoders, String uri,
+                     String extension, boolean offline) {
       super(name, drmSchemeUuid, drmLicenseUrl, drmKeyRequestProperties, preferExtensionDecoders);
       this.uri = uri;
       this.extension = extension;
+      this.offline = offline;
     }
 
     @Override
@@ -416,7 +422,8 @@ public class SampleChooserActivity extends Activity {
       return super.buildIntent(context)
           .setData(Uri.parse(uri))
           .putExtra(PlayerActivity.EXTENSION_EXTRA, extension)
-          .setAction(PlayerActivity.ACTION_VIEW);
+          .setAction(PlayerActivity.ACTION_VIEW)
+          .putExtra(PlayerActivity.OFFLINE, offline);
     }
 
   }

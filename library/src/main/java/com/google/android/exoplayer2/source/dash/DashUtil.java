@@ -35,7 +35,12 @@ import com.google.android.exoplayer2.upstream.DataSourceInputStream;
 import com.google.android.exoplayer2.upstream.DataSpec;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.MimeTypes;
+
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 
 /**
  * Utility methods for DASH streams.
@@ -53,8 +58,14 @@ public final class DashUtil {
    */
   public static DashManifest loadManifest(DataSource dataSource, String manifestUriString)
       throws IOException {
-    DataSourceInputStream inputStream = new DataSourceInputStream(dataSource,
+    DataSourceInputStream inputStream = null;
+    if(dataSource instanceof HttpDataSource){
+      inputStream = new DataSourceInputStream(dataSource,
         new DataSpec(Uri.parse(manifestUriString), DataSpec.FLAG_ALLOW_CACHING_UNKNOWN_LENGTH));
+    }else{
+      inputStream = new DataSourceInputStream(dataSource,
+              new DataSpec(Uri.fromFile(new File(manifestUriString)), DataSpec.FLAG_ALLOW_CACHING_UNKNOWN_LENGTH));
+    }
     try {
       inputStream.open();
       DashManifestParser parser = new DashManifestParser();

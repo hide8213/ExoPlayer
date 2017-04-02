@@ -18,6 +18,8 @@ package com.google.android.exoplayer2.drm;
 import android.annotation.TargetApi;
 import android.net.Uri;
 import android.text.TextUtils;
+import android.util.Base64;
+
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.drm.ExoMediaDrm.KeyRequest;
 import com.google.android.exoplayer2.drm.ExoMediaDrm.ProvisionRequest;
@@ -146,7 +148,9 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
         DataSpec.FLAG_ALLOW_GZIP);
     DataSourceInputStream inputStream = new DataSourceInputStream(dataSource, dataSpec);
     try {
-      return Util.toByteArray(inputStream);
+      byte[] input = Util.toByteArray(inputStream);
+      String in = new String(input);
+      return input;
     } finally {
       Util.closeQuietly(inputStream);
     }

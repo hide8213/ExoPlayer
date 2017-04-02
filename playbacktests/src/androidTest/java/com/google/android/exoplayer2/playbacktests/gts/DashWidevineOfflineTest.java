@@ -16,7 +16,9 @@
 package com.google.android.exoplayer2.playbacktests.gts;
 
 import android.media.MediaDrm.MediaDrmStateException;
+import android.os.Environment;
 import android.test.ActivityInstrumentationTestCase2;
+import android.util.Base64;
 import android.util.Pair;
 import com.google.android.exoplayer2.drm.DrmSession.DrmSessionException;
 import com.google.android.exoplayer2.drm.FrameworkMediaCrypto;
@@ -24,9 +26,22 @@ import com.google.android.exoplayer2.drm.OfflineLicenseHelper;
 import com.google.android.exoplayer2.playbacktests.util.ActionSchedule;
 import com.google.android.exoplayer2.playbacktests.util.HostActivity;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
+import com.google.android.exoplayer2.upstream.FileDataSource;
+import com.google.android.exoplayer2.upstream.FileDataSourceFactory;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+
 import junit.framework.Assert;
 
 /**
@@ -39,8 +54,10 @@ public final class DashWidevineOfflineTest extends ActivityInstrumentationTestCa
 
   private DashTestRunner testRunner;
   private DefaultHttpDataSourceFactory httpDataSourceFactory;
+  private FileDataSourceFactory fileDataSourceFactory;
   private OfflineLicenseHelper<FrameworkMediaCrypto> offlineLicenseHelper;
   private byte[] offlineLicenseKeySetId;
+  private boolean offline;
 
   public DashWidevineOfflineTest() {
     super(HostActivity.class);
@@ -49,9 +66,10 @@ public final class DashWidevineOfflineTest extends ActivityInstrumentationTestCa
   @Override
   protected void setUp() throws Exception {
     super.setUp();
-    testRunner = new DashTestRunner(TAG, getActivity(), getInstrumentation())
+    this.offline = true;
+    testRunner = new DashTestRunner(TAG, getActivity(), getInstrumentation(), offline)
         .setStreamName("test_widevine_h264_fixed_offline")
-        .setManifestUrl(DashTestData.REX_WIDEVINE_H264_MANIFEST)
+        .setManifestUrl(DashTestData.REX_LOCAL_WIDEVINE_H264_MANIFEST)
         .setWidevineMimeType(MimeTypes.VIDEO_H264)
         .setFullPlaybackNoSeeking(true)
         .setCanIncludeAdditionalVideoFormats(false)
@@ -60,16 +78,19 @@ public final class DashWidevineOfflineTest extends ActivityInstrumentationTestCa
 
     boolean useL1Widevine = DashTestRunner.isL1WidevineAvailable(MimeTypes.VIDEO_H264);
     String widevineLicenseUrl = DashTestData.getWidevineLicenseUrl(useL1Widevine);
+//    String widevineLicenseUrl = null;
     httpDataSourceFactory = new DefaultHttpDataSourceFactory(USER_AGENT);
+
     offlineLicenseHelper = OfflineLicenseHelper.newWidevineInstance(widevineLicenseUrl,
         httpDataSourceFactory);
+    fileDataSourceFactory = new FileDataSourceFactory();
   }
 
   @Override
   protected void tearDown() throws Exception {
     testRunner = null;
     if (offlineLicenseKeySetId != null) {
-      releaseLicense();
+      //releaseLicense();
     }
     if (offlineLicenseHelper != null) {
       offlineLicenseHelper.releaseResources();
@@ -82,14 +103,14 @@ public final class DashWidevineOfflineTest extends ActivityInstrumentationTestCa
   // Offline license tests
 
   public void testWidevineOfflineLicense() throws Exception {
-    if (Util.SDK_INT < 22) {
-      return; // Pass.
-    }
+//    if (Util.SDK_INT < 22) {
+//      return; // Pass.
+//    }
      downloadLicense();
     testRunner.run();
 
     // Renew license after playback should still work
-    offlineLicenseKeySetId = offlineLicenseHelper.renew(offlineLicenseKeySetId);
+    //offlineLicenseKeySetId = offlineLicenseHelper.renew(offlineLicenseKeySetId);
     Assert.assertNotNull(offlineLicenseKeySetId);
   }
 
@@ -164,10 +185,32 @@ public final class DashWidevineOfflineTest extends ActivityInstrumentationTestCa
   }
 
   private void downloadLicense() throws InterruptedException, DrmSessionException, IOException {
-    offlineLicenseKeySetId = offlineLicenseHelper.download(
-        httpDataSourceFactory.createDataSource(), DashTestData.REX_WIDEVINE_H264_MANIFEST);
-    Assert.assertNotNull(offlineLicenseKeySetId);
-    Assert.assertTrue(offlineLicenseKeySetId.length > 0);
+
+//    offlineLicenseKeySetId = offlineLicenseHelper.download(
+//        httpDataSourceFactory.createDataSource(), DashTestData.REX_WIDEVINE_H264_MANIFEST);
+//    offlineLicenseKeySetId = offlineLicenseHelper.download((FileDataSource) fileDataSourceFactory.createDataSource(), DashTestData.REX_LOCAL_WIDEVINE_H264_MANIFEST);
+
+//    OutputStream output = new FileOutputStream("/sdcard/license");
+//    OutputStreamWriter myOutWriter = new OutputStreamWriter(output);
+//    output.write(Base64.encode(offlineLicenseKeySetId,0));
+//    output.close();
+//    myOutWriter.close();
+
+    /** Read license key from file */
+    File dir = Environment.getExternalStorageDirectory();
+    File yourFile = new File(dir, "license");
+    InputStream inputStream = new FileInputStream(yourFile);
+    InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+    BufferedReader r = new BufferedReader(new InputStreamReader(inputStream));
+    offlineLicenseKeySetId = Base64.decode(r.readLine(),0);
+//    offlineLicenseKeySetId = offlineLicenseHelper.download((FileDataSource) fileDataSourceFactory.createDataSource(), DashTestData.REX_LOCAL_WIDEVINE_H264_MANIFEST);
+
+    offlineLicenseHelper.playback(
+            (FileDataSource) fileDataSourceFactory.createDataSource(), DashTestData.REX_LOCAL_WIDEVINE_H264_MANIFEST, offlineLicenseKeySetId);
+//    String li = new String(offlineLicenseKeySetId);
+//    Assert.assertNotNull(offlineLicenseKeySetId);
+//    Assert.assertTrue(offlineLicenseKeySetId.length > 0);
+
     testRunner.setOfflineLicenseKeySetId(offlineLicenseKeySetId);
   }
 

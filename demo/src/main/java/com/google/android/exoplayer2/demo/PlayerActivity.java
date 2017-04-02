@@ -20,9 +20,13 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.text.TextUtils;
+import android.util.Base64;
+import android.util.Log;
 import android.view.KeyEvent;
+import android.view.Surface;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
@@ -34,13 +38,19 @@ import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.ExoPlayerFactory;
+import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
+import com.google.android.exoplayer2.audio.AudioRendererEventListener;
+import com.google.android.exoplayer2.decoder.DecoderCounters;
 import com.google.android.exoplayer2.drm.DefaultDrmSessionManager;
+import com.google.android.exoplayer2.drm.DrmSession;
 import com.google.android.exoplayer2.drm.DrmSessionManager;
 import com.google.android.exoplayer2.drm.FrameworkMediaCrypto;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
+import com.google.android.exoplayer2.drm.MediaDrmCallback;
+import com.google.android.exoplayer2.drm.OfflineLicenseHelper;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer.DecoderInitializationException;
@@ -65,8 +75,23 @@ import com.google.android.exoplayer2.ui.PlaybackControlView;
 import com.google.android.exoplayer2.ui.SimpleExoPlayerView;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
+import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
+import com.google.android.exoplayer2.upstream.FileDataSource;
+import com.google.android.exoplayer2.upstream.FileDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
+import com.google.android.exoplayer2.upstream.TransferListener;
 import com.google.android.exoplayer2.util.Util;
+import com.google.android.exoplayer2.video.VideoRendererEventListener;
+
+import junit.framework.Assert;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -76,7 +101,7 @@ import java.util.UUID;
  * An activity that plays media using {@link SimpleExoPlayer}.
  */
 public class PlayerActivity extends Activity implements OnClickListener, ExoPlayer.EventListener,
-    PlaybackControlView.VisibilityListener {
+    PlaybackControlView.VisibilityListener, AudioRendererEventListener, VideoRendererEventListener {
 
   public static final String DRM_SCHEME_UUID_EXTRA = "drm_scheme_uuid";
   public static final String DRM_LICENSE_URL = "drm_license_url";
@@ -90,6 +115,9 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
       "com.google.android.exoplayer.demo.action.VIEW_LIST";
   public static final String URI_LIST_EXTRA = "uri_list";
   public static final String EXTENSION_LIST_EXTRA = "extension_list";
+  public static final String OFFLINE = "offline";
+  private FileDataSourceFactory fileDataSourceFactory;
+  private OfflineLicenseHelper<FrameworkMediaCrypto> offlineLicenseHelper;
 
   private static final DefaultBandwidthMeter BANDWIDTH_METER = new DefaultBandwidthMeter();
   private static final CookieManager DEFAULT_COOKIE_MANAGER;
@@ -115,6 +143,34 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
   private boolean shouldAutoPlay;
   private int resumeWindow;
   private long resumePosition;
+  private byte[] offlineLicenseKeySetId;
+  private String tag = "PlayerActivity";
+
+
+  private void downloadLicense(String manifestUri, String licenseUri) throws InterruptedException, DrmSession.DrmSessionException, IOException, UnsupportedDrmException {
+//    offlineLicenseKeySetId = offlineLicenseHelper.download(
+//        httpDataSourceFactory.createDataSource(), DashTestData.REX_WIDEVINE_H264_MANIFEST);
+    //offlineLicenseKeySetId = offlineLicenseHelper.download((FileDataSource) fileDataSourceFactory.createDataSource(), DashTestData.REX_LOCAL_WIDEVINE_H264_MANIFEST);
+//
+//    OutputStream output = new FileOutputStream("/sdcard/license");
+//    OutputStreamWriter myOutWriter = new OutputStreamWriter(output);
+//    output.write(Base64.encode(offlineLicenseKeySetId,0));
+//    output.close();
+//    myOutWriter.close();
+
+    /** Read license key from file */
+    File dir = Environment.getExternalStorageDirectory();
+    File yourFile = new File(dir, licenseUri);
+    InputStream inputStream = new FileInputStream(yourFile);
+    InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+    BufferedReader r = new BufferedReader(new InputStreamReader(inputStream));
+    offlineLicenseKeySetId = Base64.decode(r.readLine(),0);
+    fileDataSourceFactory = new FileDataSourceFactory();
+    offlineLicenseHelper = OfflineLicenseHelper.newWidevineInstance(licenseUri,
+            buildHttpDataSourceFactory(false));
+    offlineLicenseHelper.playback(
+            (FileDataSource) fileDataSourceFactory.createDataSource(), manifestUri, offlineLicenseKeySetId);
+  }
 
   // Activity lifecycle
 
@@ -229,7 +285,9 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
 
   private void initializePlayer() {
     Intent intent = getIntent();
+
     boolean needNewPlayer = player == null;
+    boolean offline = intent.getBooleanExtra(OFFLINE, false);;
     if (needNewPlayer) {
       boolean preferExtensionDecoders = intent.getBooleanExtra(PREFER_EXTENSION_DECODERS, false);
       UUID drmSchemeUuid = intent.hasExtra(DRM_SCHEME_UUID_EXTRA)
@@ -239,14 +297,28 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
         String drmLicenseUrl = intent.getStringExtra(DRM_LICENSE_URL);
         String[] keyRequestPropertiesArray = intent.getStringArrayExtra(DRM_KEY_REQUEST_PROPERTIES);
         try {
-          drmSessionManager = buildDrmSessionManager(drmSchemeUuid, drmLicenseUrl,
-              keyRequestPropertiesArray);
+          if(!offline){
+            drmSessionManager = buildDrmSessionManager(drmSchemeUuid, drmLicenseUrl,
+                    keyRequestPropertiesArray, null);
+          }else{
+            String manifest = Environment.getExternalStorageDirectory() + intent.getData().getPath();
+            downloadLicense(manifest, drmLicenseUrl);
+            drmSessionManager = buildDrmSessionManager(drmSchemeUuid, drmLicenseUrl,
+                    keyRequestPropertiesArray, offlineLicenseKeySetId);
+
+          }
         } catch (UnsupportedDrmException e) {
           int errorStringId = Util.SDK_INT < 18 ? R.string.error_drm_not_supported
               : (e.reason == UnsupportedDrmException.REASON_UNSUPPORTED_SCHEME
                   ? R.string.error_drm_unsupported_scheme : R.string.error_drm_unknown);
           showToast(errorStringId);
           return;
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        } catch (IOException e) {
+          e.printStackTrace();
+        } catch (DrmSession.DrmSessionException e) {
+          e.printStackTrace();
         }
       }
 
@@ -257,6 +329,7 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
               : SimpleExoPlayer.EXTENSION_RENDERER_MODE_OFF;
       TrackSelection.Factory videoTrackSelectionFactory =
           new AdaptiveTrackSelection.Factory(BANDWIDTH_METER);
+
       trackSelector = new DefaultTrackSelector(videoTrackSelectionFactory);
       trackSelectionHelper = new TrackSelectionHelper(trackSelector, videoTrackSelectionFactory);
       player = ExoPlayerFactory.newSimpleInstance(this, trackSelector, new DefaultLoadControl(),
@@ -301,7 +374,11 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
       }
       MediaSource[] mediaSources = new MediaSource[uris.length];
       for (int i = 0; i < uris.length; i++) {
-        mediaSources[i] = buildMediaSource(uris[i], extensions[i]);
+        if(offline){
+          mediaSources[i] = buildOfflineMediaSource(uris[i]);
+        }else{
+          mediaSources[i] = buildMediaSource(uris[i], extensions[i]);
+        }
       }
       MediaSource mediaSource = mediaSources.length == 1 ? mediaSources[0]
           : new ConcatenatingMediaSource(mediaSources);
@@ -310,9 +387,20 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
         player.seekTo(resumeWindow, resumePosition);
       }
       player.prepare(mediaSource, !haveResumePosition, false);
+      player.addListener(this);
+      player.setAudioDebugListener(this);
+      player.setVideoDebugListener(this);
+      player.setPlayWhenReady(true);
       needRetrySource = false;
       updateButtonVisibilities();
     }
+  }
+
+  private MediaSource buildOfflineMediaSource(Uri uri) {
+    String manifest = Environment.getExternalStorageDirectory() + uri.getPath();
+    Uri manifestUri = Uri.parse(manifest);
+    return new DashMediaSource(manifestUri, fileDataSourceFactory,
+            new DefaultDashChunkSource.Factory(fileDataSourceFactory), mainHandler, eventLogger);
   }
 
   private MediaSource buildMediaSource(Uri uri, String overrideExtension) {
@@ -337,7 +425,7 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
   }
 
   private DrmSessionManager<FrameworkMediaCrypto> buildDrmSessionManager(UUID uuid,
-      String licenseUrl, String[] keyRequestPropertiesArray) throws UnsupportedDrmException {
+      String licenseUrl, String[] keyRequestPropertiesArray, byte[] offlineLicenseKeySetId) throws UnsupportedDrmException {
     if (Util.SDK_INT < 18) {
       return null;
     }
@@ -349,8 +437,12 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
             keyRequestPropertiesArray[i + 1]);
       }
     }
-    return new DefaultDrmSessionManager<>(uuid,
+    DefaultDrmSessionManager defaultDrmSessionManager = new DefaultDrmSessionManager<>(uuid,
         FrameworkMediaDrm.newInstance(uuid), drmCallback, null, mainHandler, eventLogger);
+    if(offlineLicenseKeySetId != null){
+      defaultDrmSessionManager.setMode(DefaultDrmSessionManager.MODE_PLAYBACK, offlineLicenseKeySetId);
+    }
+    return defaultDrmSessionManager;
   }
 
   private void releasePlayer() {
@@ -400,6 +492,11 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
   private HttpDataSource.Factory buildHttpDataSourceFactory(boolean useBandwidthMeter) {
     return ((DemoApplication) getApplication())
         .buildHttpDataSourceFactory(useBandwidthMeter ? BANDWIDTH_METER : null);
+  }
+
+  private FileDataSource.Factory buildFileDataSourceFactory(boolean useBandwidthMeter) {
+    return ((DemoApplication) getApplication())
+            .buildHttpDataSourceFactory(useBandwidthMeter ? BANDWIDTH_METER : null);
   }
 
   // ExoPlayer.EventListener implementation
@@ -556,4 +653,76 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
     return false;
   }
 
+  @Override
+  public void onAudioEnabled(DecoderCounters counters) {
+    Log.d(tag, "audioEnabled");
+  }
+
+  @Override
+  public void onAudioSessionId(int audioSessionId) {
+    Log.d(tag, "audioSessionId [" + audioSessionId + "]");
+  }
+
+  @Override
+  public void onAudioDecoderInitialized(String decoderName, long elapsedRealtimeMs,
+                                        long initializationDurationMs) {
+    Log.d(tag, "audioDecoderInitialized [" + decoderName + "]");
+  }
+
+  @Override
+  public void onAudioInputFormatChanged(Format format) {
+    Log.d(tag, "audioFormatChanged [" + Format.toLogString(format) + "]");
+  }
+
+  @Override
+  public void onAudioDisabled(DecoderCounters counters) {
+    Log.d(tag, "audioDisabled");
+    new DecoderCounters().merge(counters);
+  }
+
+  @Override
+  public void onAudioTrackUnderrun(int bufferSize, long bufferSizeMs, long elapsedSinceLastFeedMs) {
+    Log.e(tag, "audioTrackUnderrun [" + bufferSize + ", " + bufferSizeMs + ", "
+            + elapsedSinceLastFeedMs + "]", null);
+  }
+
+  // VideoRendererEventListener
+
+  @Override
+  public void onVideoEnabled(DecoderCounters counters) {
+    Log.d(tag, "videoEnabled");
+  }
+
+  @Override
+  public void onVideoDecoderInitialized(String decoderName, long elapsedRealtimeMs,
+                                        long initializationDurationMs) {
+    Log.d(tag, "videoDecoderInitialized [" + decoderName + "]");
+  }
+
+  @Override
+  public void onVideoInputFormatChanged(Format format) {
+    Log.d(tag, "videoFormatChanged [" + Format.toLogString(format) + "]");
+  }
+
+  @Override
+  public void onVideoDisabled(DecoderCounters counters) {
+    Log.d(tag, "videoDisabled");
+    new DecoderCounters().merge(counters);
+  }
+
+  @Override
+  public void onDroppedFrames(int count, long elapsed) {
+    Log.d(tag, "droppedFrames [" + count + "]");
+  }
+
+  @Override
+  public void onVideoSizeChanged(int width, int height, int unappliedRotationDegrees,
+                                 float pixelWidthHeightRatio) {
+    // Do nothing.
+  }
+
+  @Override
+  public void onRenderedFirstFrame(Surface surface) {
+    // Do nothing.
+  }
 }

@@ -26,6 +26,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.support.annotation.IntDef;
 import android.text.TextUtils;
+import android.util.Base64;
 import android.util.Log;
 import android.util.Pair;
 import com.google.android.exoplayer2.C;
@@ -37,6 +38,9 @@ import com.google.android.exoplayer2.extractor.mp4.PsshAtomUtil;
 import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
+
+import org.json.JSONObject;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.HashMap;
@@ -86,7 +90,7 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
 
   /** Determines the action to be done after a session acquired. */
   @Retention(RetentionPolicy.SOURCE)
-  @IntDef({MODE_PLAYBACK, MODE_QUERY, MODE_DOWNLOAD, MODE_RELEASE})
+  @IntDef({MODE_PLAYBACK, MODE_QUERY, MODE_DOWNLOAD, MODE_RELEASE, MODE_OFFLINE})
   public @interface Mode {}
   /**
    * Loads and refreshes (if necessary) a license for playback. Supports streaming and offline
@@ -102,6 +106,8 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
   public static final int MODE_DOWNLOAD = 2;
   /** Releases an existing offline license. */
   public static final int MODE_RELEASE = 3;
+
+  public static final int MODE_OFFLINE = 4;
 
   private static final String TAG = "OfflineDrmSessionMngr";
   private static final String CENC_SCHEME_MIME_TYPE = "cenc";
@@ -420,6 +426,10 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
     return offlineLicenseKeySetId;
   }
 
+  public void setOfflineLicenseKeySetId(byte[] offlineLicenseKeySetId) {
+    this.offlineLicenseKeySetId = offlineLicenseKeySetId;
+  }
+
   // Internal methods.
 
   private void openInternal(boolean allowProvisioning) {
@@ -428,6 +438,7 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
       mediaCrypto = mediaDrm.createMediaCrypto(uuid, sessionId);
       state = STATE_OPENED;
       doLicense();
+      //save license
     } catch (NotProvisionedException e) {
       if (allowProvisioning) {
         postProvisionRequest();
@@ -472,7 +483,7 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
     }
   }
 
-  private void doLicense() {
+  public void doLicense() {
     switch (mode) {
       case MODE_PLAYBACK:
       case MODE_QUERY:
@@ -516,6 +527,9 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
         if (restoreKeys()) {
           postKeyRequest(offlineLicenseKeySetId, MediaDrm.KEY_TYPE_RELEASE);
         }
+        break;
+      case MODE_OFFLINE:
+        restoreKeys();
         break;
     }
   }
@@ -572,10 +586,13 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
           });
         }
       } else {
-        byte[] resByte = (byte[]) response;
-        String resStr = new String(resByte);
+//        byte[] resByte = (byte[]) response;
+//        String resStr = new String(resByte);
+//        JSONObject jsonObject = new JSONObject(resStr);
+//        String license = (String) jsonObject.get("license");
+//        byte[] decodeByte = Base64.decode(license, Base64.DEFAULT);
         byte[] keySetId = mediaDrm.provideKeyResponse(sessionId, (byte[]) response);
-        if ((mode == MODE_DOWNLOAD || (mode == MODE_PLAYBACK && offlineLicenseKeySetId != null))
+        if (((mode == MODE_OFFLINE && offlineLicenseKeySetId != null) || mode == MODE_DOWNLOAD || (mode == MODE_PLAYBACK && offlineLicenseKeySetId != null))
             && keySetId != null && keySetId.length != 0) {
           offlineLicenseKeySetId = keySetId;
         }

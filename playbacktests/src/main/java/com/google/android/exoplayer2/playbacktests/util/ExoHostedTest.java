@@ -81,6 +81,7 @@ public abstract class ExoHostedTest implements HostedTest, ExoPlayer.EventListen
   private long totalPlayingTimeMs;
   private long lastPlayingStartTimeMs;
   private long sourceDurationMs;
+  private boolean offline;
 
   /**
    * @param tag A tag to use for logging.
@@ -89,9 +90,9 @@ public abstract class ExoHostedTest implements HostedTest, ExoPlayer.EventListen
    *     was within {@link #MAX_PLAYING_TIME_DISCREPANCY_MS} of the media duration. If set to false,
    *     the test will not assert an expected playing time.
    */
-  public ExoHostedTest(String tag, boolean fullPlaybackNoSeeking) {
+  public ExoHostedTest(String tag, boolean fullPlaybackNoSeeking, boolean offline) {
     this(tag, fullPlaybackNoSeeking ? EXPECTED_PLAYING_TIME_MEDIA_DURATION_MS
-        : EXPECTED_PLAYING_TIME_UNSET, true);
+        : EXPECTED_PLAYING_TIME_UNSET, true, offline);
   }
 
   /**
@@ -105,12 +106,13 @@ public abstract class ExoHostedTest implements HostedTest, ExoPlayer.EventListen
    *     assert an expected playing time.
    * @param failOnPlayerError Whether a player error should be considered a test failure.
    */
-  public ExoHostedTest(String tag, long expectedPlayingTimeMs, boolean failOnPlayerError) {
+  public ExoHostedTest(String tag, long expectedPlayingTimeMs, boolean failOnPlayerError, boolean offline) {
     this.tag = tag;
     this.expectedPlayingTimeMs = expectedPlayingTimeMs;
     this.failOnPlayerError = failOnPlayerError;
     videoDecoderCounters = new DecoderCounters();
     audioDecoderCounters = new DecoderCounters();
+    this.offline = offline;
   }
 
   /**

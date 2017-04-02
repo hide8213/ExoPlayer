@@ -79,7 +79,7 @@ public final class DashTest extends ActivityInstrumentationTestCase2<HostActivit
   @Override
   protected void setUp() throws Exception {
     super.setUp();
-    testRunner = new DashTestRunner(TAG, getActivity(), getInstrumentation());
+    testRunner = new DashTestRunner(TAG, getActivity(), getInstrumentation(), true);
   }
 
   @Override

@@ -31,6 +31,7 @@ import com.google.android.exoplayer2.source.dash.manifest.AdaptationSet;
 import com.google.android.exoplayer2.source.dash.manifest.DashManifest;
 import com.google.android.exoplayer2.source.dash.manifest.Period;
 import com.google.android.exoplayer2.source.dash.manifest.Representation;
+import com.google.android.exoplayer2.upstream.FileDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource.Factory;
 import com.google.android.exoplayer2.util.Assertions;
@@ -59,8 +60,13 @@ public final class OfflineLicenseHelper<T extends ExoMediaCrypto> {
    */
   public static OfflineLicenseHelper<FrameworkMediaCrypto> newWidevineInstance(
       String licenseUrl, Factory httpDataSourceFactory) throws UnsupportedDrmException {
-    return newWidevineInstance(
-        new HttpMediaDrmCallback(licenseUrl, httpDataSourceFactory), null);
+    if(httpDataSourceFactory instanceof HttpDataSource.Factory){
+      return newWidevineInstance(
+              new HttpMediaDrmCallback(licenseUrl, httpDataSourceFactory), null);
+    }else {
+      return newWidevineInstance(
+              new HttpMediaDrmCallback(licenseUrl, httpDataSourceFactory), null);
+    }
   }
 
   /**
@@ -144,6 +150,11 @@ public final class OfflineLicenseHelper<T extends ExoMediaCrypto> {
     return download(dataSource, DashUtil.loadManifest(dataSource, manifestUriString));
   }
 
+  public byte[] download(FileDataSource dataSource, String manifestUriString)
+          throws IOException, InterruptedException, DrmSessionException {
+    return download(dataSource, DashUtil.loadManifest(dataSource, manifestUriString));
+  }
+
   /**
    * Downloads an offline license.
    *
@@ -186,6 +197,83 @@ public final class OfflineLicenseHelper<T extends ExoMediaCrypto> {
       }
     }
     blockingKeyRequest(DefaultDrmSessionManager.MODE_DOWNLOAD, null, drmInitData);
+    return drmSessionManager.getOfflineLicenseKeySetId();
+  }
+
+  public void playback(FileDataSource dataSource, String manifestUriString, byte[] offlineLicenseKeySetId)
+          throws IOException, InterruptedException, DrmSessionException {
+    playback(dataSource, DashUtil.loadManifest(dataSource, manifestUriString), offlineLicenseKeySetId);
+  }
+
+  public void playback(FileDataSource dataSource, DashManifest dashManifest, byte[] offlineLicenseKeySetId)
+          throws IOException, InterruptedException, DrmSessionException {
+    // Get DrmInitData
+    // Prefer drmInitData obtained from the manifest over drmInitData obtained from the stream,
+    // as per DASH IF Interoperability Recommendations V3.0, 7.5.3.
+    if (dashManifest.getPeriodCount() < 1) {
+      return;
+    }
+    Period period = dashManifest.getPeriod(0);
+    int adaptationSetIndex = period.getAdaptationSetIndex(C.TRACK_TYPE_VIDEO);
+    if (adaptationSetIndex == C.INDEX_UNSET) {
+      adaptationSetIndex = period.getAdaptationSetIndex(C.TRACK_TYPE_AUDIO);
+      if (adaptationSetIndex == C.INDEX_UNSET) {
+        return;
+      }
+    }
+    AdaptationSet adaptationSet = period.adaptationSets.get(adaptationSetIndex);
+    if (adaptationSet.representations.isEmpty()) {
+      return;
+    }
+    Representation representation = adaptationSet.representations.get(0);
+    DrmInitData drmInitData = representation.format.drmInitData;
+    if (drmInitData == null) {
+      Format sampleFormat = DashUtil.loadSampleFormat(dataSource, representation);
+      if (sampleFormat != null) {
+        drmInitData = sampleFormat.drmInitData;
+      }
+      if (drmInitData == null) {
+        return;
+      }
+    }
+    drmSessionManager.setOfflineLicenseKeySetId(offlineLicenseKeySetId);
+    DrmSession<T> session = drmSessionManager.acquireSession(handlerThread.getLooper(),
+            drmInitData);
+    drmSessionManager.releaseSession(session);
+  }
+
+  public byte[] download(FileDataSource dataSource, DashManifest dashManifest)
+          throws IOException, InterruptedException, DrmSessionException {
+    // Get DrmInitData
+    // Prefer drmInitData obtained from the manifest over drmInitData obtained from the stream,
+    // as per DASH IF Interoperability Recommendations V3.0, 7.5.3.
+    if (dashManifest.getPeriodCount() < 1) {
+      return null;
+    }
+    Period period = dashManifest.getPeriod(0);
+    int adaptationSetIndex = period.getAdaptationSetIndex(C.TRACK_TYPE_VIDEO);
+    if (adaptationSetIndex == C.INDEX_UNSET) {
+      adaptationSetIndex = period.getAdaptationSetIndex(C.TRACK_TYPE_AUDIO);
+      if (adaptationSetIndex == C.INDEX_UNSET) {
+        return null;
+      }
+    }
+    AdaptationSet adaptationSet = period.adaptationSets.get(adaptationSetIndex);
+    if (adaptationSet.representations.isEmpty()) {
+      return null;
+    }
+    Representation representation = adaptationSet.representations.get(0);
+    DrmInitData drmInitData = representation.format.drmInitData;
+    if (drmInitData == null) {
+      Format sampleFormat = DashUtil.loadSampleFormat(dataSource, representation);
+      if (sampleFormat != null) {
+        drmInitData = sampleFormat.drmInitData;
+      }
+      if (drmInitData == null) {
+        return null;
+      }
+    }
+    blockingKeyRequest(DefaultDrmSessionManager.MODE_PLAYBACK, null, drmInitData);
     return drmSessionManager.getOfflineLicenseKeySetId();
   }
 
@@ -246,6 +334,17 @@ public final class OfflineLicenseHelper<T extends ExoMediaCrypto> {
     conditionVariable.close();
     DrmSession<T> session = drmSessionManager.acquireSession(handlerThread.getLooper(),
         drmInitData);
+    // Block current thread until key loading is finished
+    conditionVariable.block();
+    return session;
+  }
+
+  private DrmSession<T> openOfflineRequest(@Mode int licenseMode, byte[] offlineLicenseKeySetId,
+                                               DrmInitData drmInitData) {
+    drmSessionManager.setMode(licenseMode, offlineLicenseKeySetId);
+    conditionVariable.close();
+    DrmSession<T> session = drmSessionManager.acquireSession(handlerThread.getLooper(),
+            drmInitData);
     // Block current thread until key loading is finished
     conditionVariable.block();
     return session;

@@ -1,5 +1,17 @@
 [
   {
+    "name": "Offline DASH",
+    "samples": [
+        {
+          "name": "Rex Test",
+          "uri": "/en3_sintel_vod.mpd",
+          "drm_scheme": "widevine",
+          "drm_license_url": "license",
+          "offline":true
+        }
+      ]
+  },
+  {
     "name": "YouTube DASH",
     "samples": [
       {

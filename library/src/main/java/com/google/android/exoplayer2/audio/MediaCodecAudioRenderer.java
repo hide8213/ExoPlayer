@@ -74,7 +74,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
   public MediaCodecAudioRenderer(MediaCodecSelector mediaCodecSelector,
       DrmSessionManager<FrameworkMediaCrypto> drmSessionManager,
       boolean playClearSamplesWithoutKeys) {
-    this(mediaCodecSelector, drmSessionManager, playClearSamplesWithoutKeys, null, null);
+    this(mediaCodecSelector, drmSessionManager, playClearSamplesWithoutKeys, null, null, null);
   }
 
   /**
@@ -85,7 +85,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
    */
   public MediaCodecAudioRenderer(MediaCodecSelector mediaCodecSelector, Handler eventHandler,
       AudioRendererEventListener eventListener) {
-    this(mediaCodecSelector, null, true, eventHandler, eventListener);
+    this(mediaCodecSelector, null, true, eventHandler, eventListener, null);
   }
 
   /**
@@ -104,7 +104,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
   public MediaCodecAudioRenderer(MediaCodecSelector mediaCodecSelector,
       DrmSessionManager<FrameworkMediaCrypto> drmSessionManager,
       boolean playClearSamplesWithoutKeys, Handler eventHandler,
-      AudioRendererEventListener eventListener) {
+      AudioRendererEventListener eventListener, boolean offline) {
     this(mediaCodecSelector, drmSessionManager, playClearSamplesWithoutKeys, eventHandler,
         eventListener, null);
   }

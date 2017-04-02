@@ -23,6 +23,8 @@ import android.media.MediaDrm;
 import android.media.NotProvisionedException;
 import android.media.ResourceBusyException;
 import android.media.UnsupportedSchemeException;
+import android.util.Base64;
+
 import com.google.android.exoplayer2.util.Assertions;
 import java.util.HashMap;
 import java.util.Map;
@@ -99,6 +101,9 @@ public final class FrameworkMediaDrm implements ExoMediaDrm<FrameworkMediaCrypto
   @Override
   public byte[] provideKeyResponse(byte[] scope, byte[] response)
       throws NotProvisionedException, DeniedByServerException {
+    String aee = Base64.encodeToString(response, Base64.DEFAULT);
+    int aa = response.length;
+    String res = new String(response);
     return mediaDrm.provideKeyResponse(scope, response);
   }
 

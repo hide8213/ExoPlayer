@@ -43,7 +43,7 @@ public final class ExoPlayerFactory {
    * @param loadControl The {@link LoadControl} that will be used by the instance.
    */
   public static SimpleExoPlayer newSimpleInstance(Context context, TrackSelector trackSelector,
-      LoadControl loadControl) {
+      LoadControl loadControl, boolean offline) {
     return newSimpleInstance(context, trackSelector, loadControl, null);
   }
 
